@@ -1,0 +1,29 @@
+---
+
+# jenkins variables
+project_name: docker-baseimage-cloud9
+external_type: github_commit
+release_type: stable
+release_tag: latest
+ls_branch: master
+repo_vars:
+  - EXT_GIT_BRANCH = 'master'
+  - EXT_USER = 'c9'
+  - EXT_REPO = 'core'
+  - BUILD_VERSION_ARG = 'CLOUD9_VERSION'
+  - LS_USER = 'linuxserver'
+  - LS_REPO = 'docker-baseimage-cloud9'
+  - CONTAINER_NAME = 'baseimage-cloud9'
+  - DOCKERHUB_IMAGE = 'lsiobase/cloud9'
+  - DEV_DOCKERHUB_IMAGE = 'lsiodev/cloud9-base'
+  - PR_DOCKERHUB_IMAGE = 'lspipepr/cloud9-base'
+  - DIST_IMAGE = 'ubuntu'
+  - MULTIARCH='true'
+  - CI='true'
+  - CI_WEB='true'
+  - CI_PORT='8000'
+  - CI_SSL='false'
+  - CI_DELAY='120'
+  - CI_DOCKERENV='TZ=US/Pacific'
+  - CI_AUTH='user:password'
+  - CI_WEBPATH=''

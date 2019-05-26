@@ -39,10 +39,7 @@ ARG VERSION
 LABEL build_version="Linuxserver.io version:- ${VERSION} Build-date:- ${BUILD_DATE}"
 LABEL maintainer="thelamer"
 
-# Env 
-ARG DEBIAN_FRONTEND="noninteractive"
-
-# add local files and files from c9base
+# add files from c9base
 COPY --from=builder /buildout/ /
 
 RUN \

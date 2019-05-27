@@ -10,9 +10,6 @@ pipeline {
   environment {
     BUILDS_DISCORD=credentials('build_webhook_url')
     GITHUB_TOKEN=credentials('498b4638-2d02-4ce5-832d-8a57d01d97ab')
-    EXT_GIT_BRANCH = 'master'
-    EXT_USER = 'c9'
-    EXT_REPO = 'core'
     BUILD_VERSION_ARG = 'CLOUD9_VERSION'
     LS_USER = 'linuxserver'
     LS_REPO = 'docker-baseimage-cloud9'
@@ -102,23 +99,14 @@ pipeline {
     /* ########################
        External Release Tagging
        ######################## */
-    // If this is a github commit trigger determine the current commit at head
-    stage("Set ENV github_commit"){
-     steps{
-       script{
-         env.EXT_RELEASE = sh(
-           script: '''curl -s https://api.github.com/repos/${EXT_USER}/${EXT_REPO}/commits/${EXT_GIT_BRANCH} | jq -r '. | .sha' | cut -c1-8 ''',
-           returnStdout: true).trim()
-       }
-     }
-    }
-    // If this is a github commit trigger Set the external release link
-    stage("Set ENV commit_link"){
-     steps{
-       script{
-         env.RELEASE_LINK = 'https://github.com/' + env.EXT_USER + '/' + env.EXT_REPO + '/commit/' + env.EXT_RELEASE
-       }
-     }
+    // If this is an os release set release type to none to indicate no external release
+    stage("Set ENV os"){
+      steps{
+        script{
+          env.EXT_RELEASE = env.PACKAGE_TAG
+          env.RELEASE_LINK = 'none'
+        }
+      }
     }
     // Sanitize the release tag and strip illegal docker or github characters
     stage("Sanitize tag"){
@@ -595,11 +583,11 @@ pipeline {
              "tagger": {"name": "LinuxServer Jenkins","email": "jenkins@linuxserver.io","date": "'${GITHUB_DATE}'"}}' '''
         echo "Pushing New release for Tag"
         sh '''#! /bin/bash
-              curl -s https://api.github.com/repos/${EXT_USER}/${EXT_REPO}/commits/${EXT_GIT_BRANCH} | jq '. | .commit.message' | sed 's:^.\\(.*\\).$:\\1:' > releasebody.json
+              echo "Updating base packages to ${PACKAGE_TAG}" > releasebody.json
               echo '{"tag_name":"'${EXT_RELEASE_CLEAN}'-ls'${LS_TAG_NUMBER}'",\
                      "target_commitish": "master",\
                      "name": "'${EXT_RELEASE_CLEAN}'-ls'${LS_TAG_NUMBER}'",\
-                     "body": "**LinuxServer Changes:**\\n\\n'${LS_RELEASE_NOTES}'\\n**'${EXT_REPO}' Changes:**\\n\\n' > start
+                     "body": "**LinuxServer Changes:**\\n\\n'${LS_RELEASE_NOTES}'\\n**OS Changes:**\\n\\n' > start
               printf '","draft": false,"prerelease": false}' >> releasebody.json
               paste -d'\\0' start releasebody.json > releasebody.json.done
               curl -H "Authorization: token ${GITHUB_TOKEN}" -X POST https://api.github.com/repos/${LS_USER}/${LS_REPO}/releases -d @releasebody.json.done'''

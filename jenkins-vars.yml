@@ -2,14 +2,11 @@
 
 # jenkins variables
 project_name: docker-baseimage-cloud9
-external_type: github_commit
+external_type: os
 release_type: stable
 release_tag: latest
 ls_branch: master
 repo_vars:
-  - EXT_GIT_BRANCH = 'master'
-  - EXT_USER = 'c9'
-  - EXT_REPO = 'core'
   - BUILD_VERSION_ARG = 'CLOUD9_VERSION'
   - LS_USER = 'linuxserver'
   - LS_REPO = 'docker-baseimage-cloud9'

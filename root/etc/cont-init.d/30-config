@@ -28,4 +28,4 @@ echo "[cont-init.d] Setting permissions this may take some time"
 chown -R abc:abc \
  /c9sdk/build/standalone \
  /code \
- /c9bins/.c9
+ /c9bins

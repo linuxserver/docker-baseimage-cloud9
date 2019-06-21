@@ -1,4 +1,4 @@
-FROM lsiobase/ubuntu:bionic
+FROM lsiobase/alpine:3.9
 
 # set version label
 ARG BUILD_DATE
@@ -7,21 +7,36 @@ LABEL build_version="Linuxserver.io version:- ${VERSION} Build-date:- ${BUILD_DA
 LABEL maintainer="thelamer"
 ARG NPM_CONFIG_UNSAFE_PERM=true
 
+# add local files
+COPY /root /
+
 RUN \
  echo "**** install build packages ****" && \
- apt-get update && \
- apt-get install -y \
+ apk add --no-cache \
 	g++ \
 	gcc \
 	git \
+	libgcc \
+	libxml2-dev \
 	make \
-	python && \
+	nodejs \
+	openssl-dev \
+	python \
+	tmux
+RUN \
  echo "**** Compile Cloud9 from source ****" && \
  git clone --depth 1 \
 	https://github.com/c9/core.git c9sdk && \
  cd c9sdk && \
+ sed -i \
+	's/node-pty-prebuilt/node-pty/g' \
+	plugins/node_modules/vfs-local/localfs.js && \
  mkdir -p /c9bins && \
- HOME=/c9bins scripts/install-sdk.sh && \
+ sed -i \
+	'/$URL/c\bash /install.sh' \
+	scripts/install-sdk.sh && \
+ HOME=/c9bins scripts/install-sdk.sh
+RUN \
  echo "**** Restructure files for copy ****" && \
  mkdir -p \
 	/buildout && \

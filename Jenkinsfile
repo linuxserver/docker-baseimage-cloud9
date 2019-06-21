@@ -10,9 +10,6 @@ pipeline {
   environment {
     BUILDS_DISCORD=credentials('build_webhook_url')
     GITHUB_TOKEN=credentials('498b4638-2d02-4ce5-832d-8a57d01d97ab')
-    EXT_GIT_BRANCH = 'master'
-    EXT_USER = 'c9'
-    EXT_REPO = 'core'
     BUILD_VERSION_ARG = 'CLOUD9_VERSION'
     LS_USER = 'linuxserver'
     LS_REPO = 'docker-baseimage-cloud9'
@@ -20,16 +17,9 @@ pipeline {
     DOCKERHUB_IMAGE = 'lsiobase/cloud9'
     DEV_DOCKERHUB_IMAGE = 'lsiodev/cloud9-base'
     PR_DOCKERHUB_IMAGE = 'lspipepr/cloud9-base'
-    DIST_IMAGE = 'ubuntu'
+    DIST_IMAGE = 'alpine'
     MULTIARCH='true'
-    CI='true'
-    CI_WEB='false'
-    CI_PORT='8000'
-    CI_SSL='false'
-    CI_DELAY='120'
-    CI_DOCKERENV='TZ=US/Pacific'
-    CI_AUTH='user:password'
-    CI_WEBPATH=''
+    CI='false'
   }
   stages {
     // Setup all the basic environment variables needed for the build
@@ -38,7 +28,7 @@ pipeline {
         script{
           env.EXIT_STATUS = ''
           env.LS_RELEASE = sh(
-            script: '''docker run --rm alexeiled/skopeo sh -c 'skopeo inspect docker://docker.io/'${DOCKERHUB_IMAGE}':files 2>/dev/null' | jq -r '.Labels.build_version' | awk '{print $3}' | grep '\\-ls' || : ''',
+            script: '''docker run --rm alexeiled/skopeo sh -c 'skopeo inspect docker://docker.io/'${DOCKERHUB_IMAGE}':files-alpine 2>/dev/null' | jq -r '.Labels.build_version' | awk '{print $3}' | grep '\\-ls' || : ''',
             returnStdout: true).trim()
           env.LS_RELEASE_NOTES = sh(
             script: '''cat readme-vars.yml | awk -F \\" '/date: "[0-9][0-9].[0-9][0-9].[0-9][0-9]:/ {print $4;exit;}' | sed -E ':a;N;$!ba;s/\\r{0,1}\\n/\\\\n/g' ''',
@@ -102,23 +92,16 @@ pipeline {
     /* ########################
        External Release Tagging
        ######################## */
-    // If this is a github commit trigger determine the current commit at head
-    stage("Set ENV github_commit"){
-     steps{
-       script{
-         env.EXT_RELEASE = sh(
-           script: '''curl -s https://api.github.com/repos/${EXT_USER}/${EXT_REPO}/commits/${EXT_GIT_BRANCH} | jq -r '. | .sha' | cut -c1-8 ''',
-           returnStdout: true).trim()
-       }
-     }
-    }
-    // If this is a github commit trigger Set the external release link
-    stage("Set ENV commit_link"){
-     steps{
-       script{
-         env.RELEASE_LINK = 'https://github.com/' + env.EXT_USER + '/' + env.EXT_REPO + '/commit/' + env.EXT_RELEASE
-       }
-     }
+    // If this is a custom command to determine version use that command
+    stage("Set tag custom bash"){
+      steps{
+        script{
+          env.EXT_RELEASE = sh(
+            script: ''' echo c4d1c59d-alpine ''',
+            returnStdout: true).trim()
+            env.RELEASE_LINK = 'custom_command'
+        }
+      }
     }
     // Sanitize the release tag and strip illegal docker or github characters
     stage("Sanitize tag"){
@@ -130,10 +113,10 @@ pipeline {
         }
       }
     }
-    // If this is a files build use live docker endpoints
+    // If this is a files-alpine build use live docker endpoints
     stage("Set ENV live build"){
       when {
-        branch "files"
+        branch "files-alpine"
         environment name: 'CHANGE_ID', value: ''
       }
       steps {
@@ -151,7 +134,7 @@ pipeline {
     // If this is a dev build use dev docker endpoints
     stage("Set ENV dev build"){
       when {
-        not {branch "files"}
+        not {branch "files-alpine"}
         environment name: 'CHANGE_ID', value: ''
       }
       steps {
@@ -218,7 +201,7 @@ pipeline {
     // Use helper containers to render templated files
     stage('Update-Templates') {
       when {
-        branch "files"
+        branch "files-alpine"
         environment name: 'CHANGE_ID', value: ''
         expression {
           env.CONTAINER_NAME != null
@@ -229,15 +212,15 @@ pipeline {
               set -e
               TEMPDIR=$(mktemp -d)
               docker pull linuxserver/jenkins-builder:latest
-              docker run --rm -e CONTAINER_NAME=${CONTAINER_NAME} -e GITHUB_BRANCH=files -v ${TEMPDIR}:/ansible/jenkins linuxserver/jenkins-builder:latest 
+              docker run --rm -e CONTAINER_NAME=${CONTAINER_NAME} -e GITHUB_BRANCH=files-alpine -v ${TEMPDIR}:/ansible/jenkins linuxserver/jenkins-builder:latest 
               docker pull linuxserver/doc-builder:latest
-              docker run --rm -e CONTAINER_NAME=${CONTAINER_NAME} -e GITHUB_BRANCH=files -v ${TEMPDIR}:/ansible/readme linuxserver/doc-builder:latest
+              docker run --rm -e CONTAINER_NAME=${CONTAINER_NAME} -e GITHUB_BRANCH=files-alpine -v ${TEMPDIR}:/ansible/readme linuxserver/doc-builder:latest
               if [ "$(md5sum ${TEMPDIR}/${LS_REPO}/Jenkinsfile | awk '{ print $1 }')" != "$(md5sum Jenkinsfile | awk '{ print $1 }')" ] || \
                  [ "$(md5sum ${TEMPDIR}/${CONTAINER_NAME}/README.md | awk '{ print $1 }')" != "$(md5sum README.md | awk '{ print $1 }')" ] || \
                  [ "$(cat ${TEMPDIR}/${LS_REPO}/LICENSE | md5sum | cut -c1-8)" != "${LICENSE_TAG}" ]; then
                 mkdir -p ${TEMPDIR}/repo
                 git clone https://github.com/${LS_USER}/${LS_REPO}.git ${TEMPDIR}/repo/${LS_REPO}
-                git --git-dir ${TEMPDIR}/repo/${LS_REPO}/.git checkout -f files
+                git --git-dir ${TEMPDIR}/repo/${LS_REPO}/.git checkout -f files-alpine
                 cp ${TEMPDIR}/${CONTAINER_NAME}/README.md ${TEMPDIR}/repo/${LS_REPO}/
                 cp ${TEMPDIR}/docker-${CONTAINER_NAME}/Jenkinsfile ${TEMPDIR}/repo/${LS_REPO}/
                 cp ${TEMPDIR}/docker-${CONTAINER_NAME}/LICENSE ${TEMPDIR}/repo/${LS_REPO}/
@@ -269,7 +252,7 @@ pipeline {
     // Exit the build if the Templated files were just updated
     stage('Template-exit') {
       when {
-        branch "files"
+        branch "files-alpine"
         environment name: 'CHANGE_ID', value: ''
         environment name: 'FILES_UPDATED', value: 'true'
         expression {
@@ -311,7 +294,7 @@ pipeline {
         }
         stage('Build ARMHF') {
           agent {
-            label 'ARMHF'
+            label 'X86-64-MULTI'
           }
           steps {
             withCredentials([
@@ -338,7 +321,7 @@ pipeline {
         }
         stage('Build ARM64') {
           agent {
-            label 'ARM64'
+            label 'X86-64-MULTI'
           }
           steps {
             withCredentials([
@@ -362,89 +345,6 @@ pipeline {
                     lsiodev/buildcache:arm64v8-${COMMIT_SHA}-${BUILD_NUMBER} || :'''
             }
           }
-        }
-      }
-    }
-    // Take the image we just built and dump package versions for comparison
-    stage('Update-packages') {
-      when {
-        branch "files"
-        environment name: 'CHANGE_ID', value: ''
-        environment name: 'EXIT_STATUS', value: ''
-      }
-      steps {
-        sh '''#! /bin/bash
-              set -e
-              TEMPDIR=$(mktemp -d)
-              if [ "${MULTIARCH}" == "true" ]; then
-                LOCAL_CONTAINER=${IMAGE}:amd64-${META_TAG}
-              else
-                LOCAL_CONTAINER=${IMAGE}:${META_TAG}
-              fi
-              if [ "${DIST_IMAGE}" == "alpine" ]; then
-                docker run --rm --entrypoint '/bin/sh' -v ${TEMPDIR}:/tmp ${LOCAL_CONTAINER} -c '\
-                  apk info -v > /tmp/package_versions.txt && \
-                  sort -o /tmp/package_versions.txt  /tmp/package_versions.txt && \
-                  chmod 777 /tmp/package_versions.txt'
-              elif [ "${DIST_IMAGE}" == "ubuntu" ]; then
-                docker run --rm --entrypoint '/bin/sh' -v ${TEMPDIR}:/tmp ${LOCAL_CONTAINER} -c '\
-                  apt list -qq --installed | sed "s#/.*now ##g" | cut -d" " -f1 > /tmp/package_versions.txt && \
-                  sort -o /tmp/package_versions.txt  /tmp/package_versions.txt && \
-                  chmod 777 /tmp/package_versions.txt'
-              fi
-              NEW_PACKAGE_TAG=$(md5sum ${TEMPDIR}/package_versions.txt | cut -c1-8 )
-              echo "Package tag sha from current packages in buit container is ${NEW_PACKAGE_TAG} comparing to old ${PACKAGE_TAG} from github"
-              if [ "${NEW_PACKAGE_TAG}" != "${PACKAGE_TAG}" ]; then
-                git clone https://github.com/${LS_USER}/${LS_REPO}.git ${TEMPDIR}/${LS_REPO}
-                git --git-dir ${TEMPDIR}/${LS_REPO}/.git checkout -f files
-                cp ${TEMPDIR}/package_versions.txt ${TEMPDIR}/${LS_REPO}/
-                cd ${TEMPDIR}/${LS_REPO}/
-                wait
-                git add package_versions.txt
-                git commit -m 'Bot Updating Package Versions'
-                git push https://LinuxServer-CI:${GITHUB_TOKEN}@github.com/${LS_USER}/${LS_REPO}.git --all
-                echo "true" > /tmp/packages-${COMMIT_SHA}-${BUILD_NUMBER}
-                echo "Package tag updated, stopping build process"
-              else
-                echo "false" > /tmp/packages-${COMMIT_SHA}-${BUILD_NUMBER}
-                echo "Package tag is same as previous continue with build process"
-              fi
-              rm -Rf ${TEMPDIR}'''
-        script{
-          env.PACKAGE_UPDATED = sh(
-            script: '''cat /tmp/packages-${COMMIT_SHA}-${BUILD_NUMBER}''',
-            returnStdout: true).trim()
-        }
-      }
-    }
-    // Exit the build if the package file was just updated
-    stage('PACKAGE-exit') {
-      when {
-        branch "files"
-        environment name: 'CHANGE_ID', value: ''
-        environment name: 'PACKAGE_UPDATED', value: 'true'
-        environment name: 'EXIT_STATUS', value: ''
-      }
-      steps {
-        script{
-          env.EXIT_STATUS = 'ABORTED'
-        }
-      }
-    }
-    // Exit the build if this is just a package check and there are no changes to push
-    stage('PACKAGECHECK-exit') {
-      when {
-        branch "files"
-        environment name: 'CHANGE_ID', value: ''
-        environment name: 'PACKAGE_UPDATED', value: 'false'
-        environment name: 'EXIT_STATUS', value: ''
-        expression {
-          params.PACKAGE_CHECK == 'true'
-        }
-      }
-      steps {
-        script{
-          env.EXIT_STATUS = 'ABORTED'
         }
       }
     }
@@ -475,6 +375,7 @@ pipeline {
                   docker tag lsiodev/buildcache:arm64v8-${COMMIT_SHA}-${BUILD_NUMBER} ${IMAGE}:arm64v8-${META_TAG}
                 fi
                 docker run --rm \
+                --shm-size=1gb \
                 -v /var/run/docker.sock:/var/run/docker.sock \
                 -e IMAGE=\"${IMAGE}\" \
                 -e DELAY_START=\"${CI_DELAY}\" \
@@ -518,12 +419,12 @@ pipeline {
           sh '''#! /bin/bash
              echo $DOCKERPASS | docker login -u $DOCKERUSER --password-stdin
              '''
-          sh "docker tag ${IMAGE}:${META_TAG} ${IMAGE}:files"
-          sh "docker push ${IMAGE}:files"
+          sh "docker tag ${IMAGE}:${META_TAG} ${IMAGE}:files-alpine"
+          sh "docker push ${IMAGE}:files-alpine"
           sh "docker push ${IMAGE}:${META_TAG}"
           sh '''docker rmi \
                 ${IMAGE}:${META_TAG} \
-                ${IMAGE}:files || :'''
+                ${IMAGE}:files-alpine || :'''
                 
         }
       }
@@ -553,24 +454,24 @@ pipeline {
                   docker tag lsiodev/buildcache:arm32v7-${COMMIT_SHA}-${BUILD_NUMBER} ${IMAGE}:arm32v7-${META_TAG}
                   docker tag lsiodev/buildcache:arm64v8-${COMMIT_SHA}-${BUILD_NUMBER} ${IMAGE}:arm64v8-${META_TAG}
                 fi'''
-          sh "docker tag ${IMAGE}:amd64-${META_TAG} ${IMAGE}:amd64-files"
-          sh "docker tag ${IMAGE}:arm32v7-${META_TAG} ${IMAGE}:arm32v7-files"
-          sh "docker tag ${IMAGE}:arm64v8-${META_TAG} ${IMAGE}:arm64v8-files"
+          sh "docker tag ${IMAGE}:amd64-${META_TAG} ${IMAGE}:amd64-files-alpine"
+          sh "docker tag ${IMAGE}:arm32v7-${META_TAG} ${IMAGE}:arm32v7-files-alpine"
+          sh "docker tag ${IMAGE}:arm64v8-${META_TAG} ${IMAGE}:arm64v8-files-alpine"
           sh "docker push ${IMAGE}:amd64-${META_TAG}"
           sh "docker push ${IMAGE}:arm32v7-${META_TAG}"
           sh "docker push ${IMAGE}:arm64v8-${META_TAG}"
-          sh "docker push ${IMAGE}:amd64-files"
-          sh "docker push ${IMAGE}:arm32v7-files"
-          sh "docker push ${IMAGE}:arm64v8-files"
-          sh "docker manifest push --purge ${IMAGE}:files || :"
-          sh "docker manifest create ${IMAGE}:files ${IMAGE}:amd64-files ${IMAGE}:arm32v7-files ${IMAGE}:arm64v8-files"
-          sh "docker manifest annotate ${IMAGE}:files ${IMAGE}:arm32v7-files --os linux --arch arm"
-          sh "docker manifest annotate ${IMAGE}:files ${IMAGE}:arm64v8-files --os linux --arch arm64 --variant v8"
+          sh "docker push ${IMAGE}:amd64-files-alpine"
+          sh "docker push ${IMAGE}:arm32v7-files-alpine"
+          sh "docker push ${IMAGE}:arm64v8-files-alpine"
+          sh "docker manifest push --purge ${IMAGE}:files-alpine || :"
+          sh "docker manifest create ${IMAGE}:files-alpine ${IMAGE}:amd64-files-alpine ${IMAGE}:arm32v7-files-alpine ${IMAGE}:arm64v8-files-alpine"
+          sh "docker manifest annotate ${IMAGE}:files-alpine ${IMAGE}:arm32v7-files-alpine --os linux --arch arm"
+          sh "docker manifest annotate ${IMAGE}:files-alpine ${IMAGE}:arm64v8-files-alpine --os linux --arch arm64 --variant v8"
           sh "docker manifest push --purge ${IMAGE}:${META_TAG} || :"
           sh "docker manifest create ${IMAGE}:${META_TAG} ${IMAGE}:amd64-${META_TAG} ${IMAGE}:arm32v7-${META_TAG} ${IMAGE}:arm64v8-${META_TAG}"
           sh "docker manifest annotate ${IMAGE}:${META_TAG} ${IMAGE}:arm32v7-${META_TAG} --os linux --arch arm"
           sh "docker manifest annotate ${IMAGE}:${META_TAG} ${IMAGE}:arm64v8-${META_TAG} --os linux --arch arm64 --variant v8"
-          sh "docker manifest push --purge ${IMAGE}:files"
+          sh "docker manifest push --purge ${IMAGE}:files-alpine"
           sh "docker manifest push --purge ${IMAGE}:${META_TAG}"
         }
       }
@@ -578,7 +479,7 @@ pipeline {
     // If this is a public release tag it in the LS Github
     stage('Github-Tag-Push-Release') {
       when {
-        branch "files"
+        branch "files-alpine"
         expression {
           env.LS_RELEASE != env.EXT_RELEASE_CLEAN + '-ls' + env.LS_TAG_NUMBER
         }
@@ -590,16 +491,16 @@ pipeline {
         sh '''curl -H "Authorization: token ${GITHUB_TOKEN}" -X POST https://api.github.com/repos/${LS_USER}/${LS_REPO}/git/tags \
         -d '{"tag":"'${EXT_RELEASE_CLEAN}'-ls'${LS_TAG_NUMBER}'",\
              "object": "'${COMMIT_SHA}'",\
-             "message": "Tagging Release '${EXT_RELEASE_CLEAN}'-ls'${LS_TAG_NUMBER}' to files",\
+             "message": "Tagging Release '${EXT_RELEASE_CLEAN}'-ls'${LS_TAG_NUMBER}' to files-alpine",\
              "type": "commit",\
              "tagger": {"name": "LinuxServer Jenkins","email": "jenkins@linuxserver.io","date": "'${GITHUB_DATE}'"}}' '''
         echo "Pushing New release for Tag"
         sh '''#! /bin/bash
-              curl -s https://api.github.com/repos/${EXT_USER}/${EXT_REPO}/commits/${EXT_GIT_BRANCH} | jq '. | .commit.message' | sed 's:^.\\(.*\\).$:\\1:' > releasebody.json
+              echo "Updating to ${EXT_RELEASE_CLEAN}" > releasebody.json
               echo '{"tag_name":"'${EXT_RELEASE_CLEAN}'-ls'${LS_TAG_NUMBER}'",\
-                     "target_commitish": "files",\
+                     "target_commitish": "files-alpine",\
                      "name": "'${EXT_RELEASE_CLEAN}'-ls'${LS_TAG_NUMBER}'",\
-                     "body": "**LinuxServer Changes:**\\n\\n'${LS_RELEASE_NOTES}'\\n**'${EXT_REPO}' Changes:**\\n\\n' > start
+                     "body": "**LinuxServer Changes:**\\n\\n'${LS_RELEASE_NOTES}'\\n**Remote Changes:**\\n\\n' > start
               printf '","draft": false,"prerelease": true}' >> releasebody.json
               paste -d'\\0' start releasebody.json > releasebody.json.done
               curl -H "Authorization: token ${GITHUB_TOKEN}" -X POST https://api.github.com/repos/${LS_USER}/${LS_REPO}/releases -d @releasebody.json.done'''

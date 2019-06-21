@@ -25,7 +25,7 @@ full_custom_readme: |
 
   [![](https://raw.githubusercontent.com/linuxserver/docker-templates/master/linuxserver.io/img/Dockerfile-Link-green.png)](https://github.com/linuxserver/docker-baseimage-cloud9/blob/master/Dockerfile)
 
-  A custom base image built with [Ubuntu linux](https://www.ubuntu.com/) and [Cloud9](https://github.com/c9/core)..
+  A custom base image built with [Alpine linux](https://alpinelinux.org/) and [Cloud9](https://github.com/c9/core)..
 
   The following line is only in this repo for loop testing:
 

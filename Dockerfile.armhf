@@ -1,5 +1,5 @@
-FROM lsiobase/cloud9:arm32v7-files as builder
-FROM lsiobase/ubuntu:arm32v7-bionic
+FROM lsiobase/cloud9:arm32v7-files-alpine as builder
+FROM lsiobase/alpine:arm32v7-3.9
 
 # set version label
 ARG BUILD_DATE
@@ -12,20 +12,20 @@ COPY --from=builder /buildout/ /
 
 RUN \
  echo "**** install base packages ****" && \
- apt-get update && \
- apt-get install -y --no-install-recommends \
+ apk add --no-cache \
+	c-ares \
 	curl \
 	git \
 	gnupg \
+	http-parser \
+	libevent \
+	libevent \
+	libstdc++ \
+	libuv \
 	sudo && \
- echo "**** Cleanup and user perms ****" && \
- usermod -aG sudo \
-	abc && \
- apt-get autoclean && \
- rm -rf \
-        /var/lib/apt/lists/* \
-        /var/tmp/* \
-        /tmp/*
+ echo "****  user perms ****" && \
+ usermod -aG wheel \
+	abc
 
 # add local files
 COPY root/ /

@@ -17,7 +17,9 @@ RUN \
 	curl \
 	git \
 	gnupg \
-	sudo && \
+	sudo \
+	unzip \
+	zip && \
  echo "**** Cleanup and user perms ****" && \
  usermod -aG sudo \
 	abc && \

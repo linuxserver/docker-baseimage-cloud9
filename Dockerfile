@@ -1,5 +1,5 @@
 FROM lsiobase/cloud9:files-alpine as builder
-FROM lsiobase/alpine:3.10
+FROM lsiobase/alpine:3.11
 
 # set version label
 ARG BUILD_DATE

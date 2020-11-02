@@ -1,5 +1,5 @@
-FROM lsiobase/cloud9:files as builder
-FROM lsiobase/ubuntu:bionic
+FROM ghcr.io/linuxserver/baseimage-cloud9:files as builder
+FROM ghcr.io/linuxserver/baseimage-ubuntu:bionic
 
 # set version label
 ARG BUILD_DATE

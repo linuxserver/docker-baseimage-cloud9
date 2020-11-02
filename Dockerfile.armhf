@@ -1,5 +1,5 @@
-FROM lsiobase/cloud9:arm32v7-files as builder
-FROM lsiobase/ubuntu:arm32v7-bionic
+FROM ghcr.io/linuxserver/baseimage-cloud9:arm32v7-files as builder
+FROM ghcr.io/linuxserver/baseimage-ubuntu:arm32v7-bionic
 
 # set version label
 ARG BUILD_DATE
